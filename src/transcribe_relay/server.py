@@ -22,12 +22,9 @@ from starlette.requests import ClientDisconnect
 from starlette.responses import StreamingResponse
 
 from .config import ServerConfig, load_config
+from .media import EXTENSIONS
 from .storage import Store
 from .worker import run_worker
-
-EXTENSIONS = set(
-    ".wav .mp3 .m4a .flac .ogg .opus .aac .wma .mp4 .mkv .mov .webm .avi".split()
-)
 
 
 class JobStatus(BaseModel):
