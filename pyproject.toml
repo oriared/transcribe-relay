@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transcribe-relay"
+version = "0.1.0"
+description = "Client and server for file transcription with Buzz"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+server = ["fastapi", "uvicorn"]
+dev = ["ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["transcribe_relay*"]
+namespaces = false
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

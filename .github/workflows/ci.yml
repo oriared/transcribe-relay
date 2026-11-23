@@ -1,0 +1,27 @@
+name: Bootstrap checks
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install base package in a clean environment
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install .
+          .venv/bin/python -m unittest discover -s tests -v
+      - name: Check server and development extras
+        run: |
+          .venv/bin/python -m pip install '.[server,dev]'
+          .venv/bin/python -m pip check
+          .venv/bin/python -I -c 'import fastapi, uvicorn, transcribe_relay'
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
