@@ -17,11 +17,12 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install .
-          .venv/bin/python -m unittest discover -s tests -v
+          .venv/bin/python -m unittest discover -s tests -p test_installation.py -v
       - name: Check server and development extras
         run: |
           .venv/bin/python -m pip install '.[server,dev]'
           .venv/bin/python -m pip check
           .venv/bin/python -I -c 'import fastapi, uvicorn, transcribe_relay'
+          .venv/bin/python -m unittest discover -s tests -v
           .venv/bin/ruff check .
           .venv/bin/ruff format --check .

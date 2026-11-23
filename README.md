@@ -1,0 +1,26 @@
+# Transcribe Relay — сервер
+
+Требуются Linux, Python 3.12+ и отдельно установленный Buzz с CLI `buzz add`.
+Установите пакет в виртуальное окружение: `python -m pip install '.[server]'`.
+
+Создайте `server.toml`, доступный только пользователю службы (`chmod 600 server.toml`):
+
+```toml
+host = "127.0.0.1"
+port = 8000
+data_dir = "relay-data"
+max_upload_bytes = 1073741824
+buzz_command = ["buzz"]
+buzz_args = ["--model-type", "whisper", "--model-size", "tiny"]
+buzz_timeout_seconds = 3600
+
+[clients]
+# Добавьте свой ключ: laptop = "<случайный токен>"
+```
+
+Сгенерируйте отдельный токен каждого клиента через `python -c 'import secrets; print(secrets.token_urlsafe(32))'`.
+Запустите `python -m transcribe_relay.server --config server.toml`. Каталог данных задаётся относительно конфига; он должен быть доступен для записи серверу и установленному Buzz (включая ограничения Snap/Flatpak). Перед развёртыванием проверьте экспорт TXT под пользователем службы. `--hide-gui` не заменяет настройку Qt; для запуска без дисплея можно проверить `QT_QPA_PLATFORM=offscreen`.
+
+Контракт запросов — `/docs`. `POST /v1/jobs` принимает бинарное тело с `Content-Type: application/octet-stream`, `Content-Length`, `Idempotency-Key` (UUID), `X-Content-SHA256` и query-параметром `filename`. Все операции с заданиями требуют `Authorization: Bearer <token>`. Скачивание TXT не удаляет файлы: клиент должен сохранить результат и только затем вызвать `/ack`.
+
+Запускайте один процесс без reload; для systemd используйте `KillMode=control-group`, чтобы при рестарте не оставались дочерние процессы Buzz. Незавершённая транскрибация после рестарта помечается `failed`; очередь сохраняется. Не публикуйте HTTP в открытой сети без HTTPS. Следите за свободным местом: неподтверждённые результаты и ошибочные задания остаются на сервере. Удаление после ack относится к каталогу задания Relay, не к собственной истории Buzz.
