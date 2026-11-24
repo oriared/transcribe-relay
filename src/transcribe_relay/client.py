@@ -8,14 +8,19 @@ import logging
 import os
 import sqlite3
 import stat
+import sys
 import time
-import tomllib
 from contextlib import closing
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .client_http import ApiError, NetworkError, OutputConflict, Relay
 from .client_state import Journal
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 LOG = logging.getLogger(__name__)
 
@@ -80,7 +85,10 @@ class Client:
                 return None
             digest = row["digest"]
             if digest is None:
-                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                hasher = hashlib.sha256()
+                while chunk := stream.read(256 * 1024):
+                    hasher.update(chunk)
+                digest = hasher.hexdigest()
                 stream.seek(0)
                 if not matches(os.fstat(stream.fileno()), row):
                     return None

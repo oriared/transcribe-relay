@@ -8,11 +8,14 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.9', '3.12']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
       - name: Install base package in a clean environment
         run: |
           python -m venv .venv
@@ -20,6 +23,7 @@ jobs:
           .venv/bin/python -m unittest discover -s tests -p test_installation.py -v
           .venv/bin/python -m unittest discover -s tests -p 'test_client*.py' -v
       - name: Check server and development extras
+        if: matrix.python == '3.12'
         run: |
           .venv/bin/python -m pip install '.[server,dev]'
           .venv/bin/python -m pip check

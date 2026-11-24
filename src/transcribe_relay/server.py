@@ -9,22 +9,26 @@ import hmac
 import logging
 import os
 import sqlite3
+import sys
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
-from starlette.requests import ClientDisconnect
-from starlette.responses import StreamingResponse
+if sys.version_info < (3, 12):
+    raise SystemExit("Transcribe Relay server requires Python 3.12 or newer")
+else:
+    import uvicorn
+    from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+    from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+    from pydantic import BaseModel
+    from starlette.requests import ClientDisconnect
+    from starlette.responses import StreamingResponse
 
-from .config import ServerConfig, load_config
-from .media import EXTENSIONS
-from .storage import Store
-from .worker import run_worker
+    from .config import ServerConfig, load_config
+    from .media import EXTENSIONS
+    from .storage import Store
+    from .worker import run_worker
 
 
 class JobStatus(BaseModel):

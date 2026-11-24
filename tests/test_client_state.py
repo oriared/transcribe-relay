@@ -1,5 +1,7 @@
 """Tests for durable client file discovery and operation state."""
 
+from __future__ import annotations
+
 import os
 import tempfile
 import unittest
