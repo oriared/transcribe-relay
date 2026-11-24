@@ -3,7 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, call, patch
 from uuid import uuid4
 
 from transcribe_relay.client import Client, Settings, Unauthorized
@@ -13,6 +13,9 @@ from transcribe_relay.client_state import Journal
 
 class ClientTests(unittest.TestCase):
     def setUp(self):
+        notifier = patch("transcribe_relay.client.notify")
+        self.notify = notifier.start()
+        self.addCleanup(notifier.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
@@ -58,6 +61,13 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(self.relay.upload.call_count, 2)
         self.relay.download.assert_called_once()
         self.assertEqual(self.relay.ack.call_count, 2)
+        self.assertEqual(
+            self.notify.call_args_list,
+            [
+                call("Файл принят сервером", "lecture.wav"),
+                call("Расшифровка сохранена", "lecture.wav.txt"),
+            ],
+        )
 
     def test_output_conflict_never_acknowledges(self):
         self.relay.upload.return_value = self.job
@@ -67,6 +77,7 @@ class ClientTests(unittest.TestCase):
         self.client.process(30)
         self.relay.ack.assert_not_called()
         self.relay.download.assert_called_once()
+        self.notify.assert_called_with("Конфликт файла результата", "lecture.wav.txt")
 
     def test_database_error_prevents_upload(self):
         self.journal.update = Mock(side_effect=sqlite3.OperationalError("disk full"))

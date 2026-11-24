@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .client_http import ApiError, NetworkError, OutputConflict, Relay
 from .client_state import Journal
+from .notifications import notify
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -141,9 +142,14 @@ class Client:
                         error=reply["error"],
                         next_at=next_poll() if next_stage == "poll" else 0,
                     )
+                    if next_stage == "failed":
+                        notify("Ошибка транскрибации", f"{path.name}: {reply['error']}")
+                    elif stage == "upload" and next_stage != "done":
+                        notify("Файл принят сервером", path.name)
                 elif stage == "download":
                     self.relay.download(row["job_id"], Path(row["output"]))
                     self.journal.update(key, stage="saved", next_at=0)
+                    notify("Расшифровка сохранена", Path(row["output"]).name)
                 elif stage == "saved":
                     self.relay.ack(row["job_id"])
                     self.journal.update(key, stage="done")
@@ -168,9 +174,11 @@ class Client:
                     self.journal.update(
                         key, stage="failed", error=f"HTTP {exc.status}: {exc.detail}"
                     )
+                    notify("Ошибка обработки файла", f"{path.name}: HTTP {exc.status}")
             except OutputConflict:
                 LOG.error("Existing transcript differs: %s", row["output"])
                 self.journal.update(key, stage="failed", error="output_conflict")
+                notify("Конфликт файла результата", Path(row["output"]).name)
             except (NetworkError, OSError) as exc:
                 LOG.warning("%s for %s: %s", stage, path, exc)
                 self.journal.update(key, next_at=next_poll())

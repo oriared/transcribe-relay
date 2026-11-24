@@ -90,7 +90,13 @@ class FakeStore:
             input_path = job_dir / "input.wav"
             input_path.write_bytes(b"audio")
             self.rows.append(
-                {"id": job_id, "status": "queued", "input": input_path, "error": None}
+                {
+                    "id": job_id,
+                    "filename": "запись.wav",
+                    "status": "queued",
+                    "input": input_path,
+                    "error": None,
+                }
             )
 
     def cleanup(self):
@@ -203,6 +209,9 @@ class BuzzTests(unittest.IsolatedAsyncioTestCase):
 
 class WorkerTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        from unittest.mock import patch
+
+        self.notify = self.enterContext(patch("transcribe_relay.worker._notify"))
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.script = self.root / "fake_buzz.py"
@@ -264,3 +273,11 @@ class WorkerTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertGreaterEqual(store.cleanup_calls, 2)
+        self.assertEqual(
+            [call.args for call in self.notify.call_args_list[:3]],
+            [
+                ("Начата транскрибация", "запись.wav"),
+                ("Транскрибация завершена", "запись.wav"),
+                ("Начата транскрибация", "запись.wav"),
+            ],
+        )
