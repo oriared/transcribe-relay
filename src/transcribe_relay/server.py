@@ -1,4 +1,4 @@
-"""HTTP service for the transcription queue. Run with --config server.toml."""
+"""HTTP service for the transcription queue."""
 
 import argparse
 import asyncio
@@ -235,11 +235,10 @@ def sync_dir(path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True, type=Path)
-    args = parser.parse_args()
+    parser.parse_args()
     try:
-        settings = load_config(args.config)
-    except (ValueError, OSError) as exc:
+        settings = load_config()
+    except ValueError as exc:
         parser.error(str(exc))
     logging.basicConfig(level=logging.INFO)
     uvicorn.run(create_app(settings), host=settings.host, port=settings.port)

@@ -1,4 +1,4 @@
-"""Watch a directory and retrieve Buzz transcripts. Run with --config client.toml."""
+"""Watch a directory and retrieve Buzz transcripts."""
 
 import argparse
 import errno
@@ -8,7 +8,6 @@ import logging
 import os
 import sqlite3
 import stat
-import sys
 import time
 from contextlib import closing
 from dataclasses import dataclass, field
@@ -16,12 +15,8 @@ from pathlib import Path
 
 from .client_http import ApiError, NetworkError, OutputConflict, Relay
 from .client_state import Journal
+from .environment import required
 from .notifications import notify
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 LOG = logging.getLogger(__name__)
 
@@ -34,24 +29,19 @@ class Settings:
     state_dir: Path
 
     @classmethod
-    def load(cls, path: Path):
-        with path.open("rb") as stream:
-            values = tomllib.load(stream)
-        if values.keys() != {"server_url", "token", "watch_dir", "state_dir"}:
-            raise ValueError(
-                "expected server_url, token, watch_dir and state_dir in config"
-            )
-        if any(
-            not isinstance(v, str) or not v.strip() or "\0" in v
-            for v in values.values()
-        ):
-            raise ValueError("configuration values must be nonempty strings")
-        if any(not 33 <= ord(c) <= 126 for c in values["token"]):
+    def load(cls):
+        values = {
+            name: required(name)
+            for name in ("server_url", "token", "watch_dir", "state_dir")
+        }
+        if any("\0" in value for value in values.values()):
+            raise ValueError("configuration values must not contain null bytes")
+        if any(not 33 <= ord(character) <= 126 for character in values["token"]):
             raise ValueError(
                 "token must contain printable ASCII characters without spaces"
             )
         for key in ("watch_dir", "state_dir"):
-            values[key] = (path.parent / values[key]).resolve()
+            values[key] = Path(values[key]).resolve()
         if values["state_dir"].is_relative_to(values["watch_dir"]):
             raise ValueError("state_dir must be outside watch_dir")
         return cls(**values)
@@ -209,11 +199,10 @@ def run(config: Settings) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True, type=Path)
-    args = parser.parse_args()
+    parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     try:
-        run(Settings.load(args.config))
+        run(Settings.load())
     except KeyboardInterrupt:
         return
     except (OSError, ValueError, Unauthorized, sqlite3.Error) as exc:

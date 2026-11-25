@@ -1,0 +1,10 @@
+host = "192.168.1.177"
+port = 8765
+data_dir = "relay-data"
+max_upload_bytes = 1073741824
+buzz_command = ["buzz"]
+buzz_args = ["--model-type", "whisper", "--model-size", "medium"]
+buzz_timeout_seconds = 3600
+
+[clients]
+laptop = "2bA4R3_S563M4B0PGNvpmZ7cWwK-QeReW5lrLo3OG0U"

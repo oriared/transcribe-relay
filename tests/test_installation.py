@@ -14,10 +14,9 @@ class BaseInstallationTests(unittest.TestCase):
             stdout=subprocess.DEVNULL,
         )
 
-    def test_base_install_requires_only_toml_backport_on_older_python(self):
+    def test_base_install_requires_no_runtime_dependencies(self):
         # pip evaluates dependency markers for the current interpreter, without extras.
         metadata = subprocess.check_output(
             [sys.executable, "-m", "pip", "show", "transcribe-relay"], text=True
         )
-        expected = "tomli" if sys.version_info < (3, 11) else ""
-        self.assertEqual(Parser().parsestr(metadata)["Requires"], expected)
+        self.assertEqual(Parser().parsestr(metadata)["Requires"], "")

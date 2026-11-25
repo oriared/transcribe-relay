@@ -5,23 +5,33 @@
 Требуются Linux, Python 3.12+ и отдельно установленный Buzz с CLI `buzz add`.
 Установите пакет в виртуальное окружение: `python -m pip install '.[server]'`.
 
-Создайте `server.toml`, доступный только пользователю службы (`chmod 600 server.toml`):
+Обязательные серверные переменные — `TRANSCRIBE_RELAY_HOST`, `TRANSCRIBE_RELAY_PORT`, `TRANSCRIBE_RELAY_CLIENTS`. Пример для одной машины (для LAN замените адрес на IP сервера):
 
-```toml
-host = "127.0.0.1"
-port = 8000
-data_dir = "relay-data"
-max_upload_bytes = 1073741824
-buzz_command = ["buzz"]
-buzz_args = ["--model-type", "whisper", "--model-size", "tiny"]
-buzz_timeout_seconds = 3600
-
-[clients]
-# Добавьте свой ключ: laptop = "<случайный токен>"
+```bash
+export TRANSCRIBE_RELAY_HOST=127.0.0.1
+export TRANSCRIBE_RELAY_PORT=8000
+export TRANSCRIBE_RELAY_CLIENTS='{"laptop":"replace-with-your-random-token"}'
+python -m transcribe_relay.server
 ```
 
-Сгенерируйте отдельный токен каждого клиента через `python -c 'import secrets; print(secrets.token_urlsafe(32))'`.
-Запустите `python -m transcribe_relay.server --config server.toml`. Каталог данных задаётся относительно конфига; он должен быть доступен для записи серверу и установленному Buzz (включая ограничения Snap/Flatpak). Перед развёртыванием проверьте экспорт TXT под пользователем службы. `--hide-gui` не заменяет настройку Qt; для запуска без дисплея можно проверить `QT_QPA_PLATFORM=offscreen`.
+Необязательные настройки сервера (все имена с префиксом `TRANSCRIBE_RELAY_`):
+
+| Параметр                             | Если не задан                                |
+| ------------------------------------ | -------------------------------------------- |
+| `DATA_DIR`                           | `relay-data` в рабочем каталоге              |
+| `MAX_UPLOAD_BYTES`                   | `1073741824` (1 ГиБ)                         |
+| `BUZZ_COMMAND`                       | `["buzz"]`                                   |
+| `BUZZ_ARGS`                          | `[]`                                         |
+| `BUZZ_TIMEOUT_SECONDS`               | `3600` (1 час)                               |
+| `BUZZ_MODEL_TYPE`, `BUZZ_MODEL_SIZE` | используются настройки по умолчанию CLI Buzz |
+
+Например: `export TRANSCRIBE_RELAY_BUZZ_MODEL_TYPE=whisper TRANSCRIBE_RELAY_BUZZ_MODEL_SIZE=small` перед запуском. Эти значения передаются как `--model-type` и `--model-size`. Не задавайте тот же флаг одновременно через `BUZZ_ARGS`.
+
+Сервер всегда запускает Buzz с `--task transcribe --language ru`: русский задан как язык исходной речи, это не перевод. Флаги языка и задачи в `TRANSCRIBE_RELAY_BUZZ_ARGS` не допускаются.
+
+`CLIENTS` задаётся JSON-объектом, а команда Buzz и её аргументы — JSON-массивами строк (без аргументов укажите `[]`). Сгенерируйте отдельный токен каждого клиента через `python -c 'import secrets; print(secrets.token_urlsafe(32))'`. Не публикуйте секреты в истории команд или репозитории. Для службы задавайте переменные в её окружении.
+
+Относительные пути считаются от рабочего каталога процесса. При переходе со старых настроек используйте абсолютные пути к прежним данным и журналам. Каталог заданий должен быть доступен серверу и Buzz, включая ограничения Snap/Flatpak. Перед развёртыванием проверьте экспорт TXT под пользователем службы; для запуска без дисплея можно проверить `QT_QPA_PLATFORM=offscreen`.
 
 Контракт запросов — `/docs`. `POST /v1/jobs` принимает бинарное тело с `Content-Type: application/octet-stream`, `Content-Length`, `Idempotency-Key` (UUID), `X-Content-SHA256` и query-параметром `filename`. Все операции с заданиями требуют `Authorization: Bearer <token>`. Скачивание TXT не удаляет файлы: клиент должен сохранить результат и только затем вызвать `/ack`.
 
@@ -29,16 +39,18 @@ buzz_timeout_seconds = 3600
 
 ## Клиент (macOS/Linux)
 
-Требуется Python 3.9+. В виртуальном окружении клиента выполните `python -m pip install .`. На Python 3.9–3.10 pip автоматически установит `tomli` для чтения TOML; с Python 3.11 клиент использует только стандартную библиотеку. Создайте `client.toml`, укажите выданный сервером токен и ограничьте доступ (`chmod 600 client.toml`):
+Требуется Python 3.9+. Установите `python -m pip install .` в виртуальном окружении клиента. Сторонних зависимостей нет.
 
-```toml
-server_url = "http://127.0.0.1:8000"
-token = "replace-with-your-server-token"
-watch_dir = "recordings"
-state_dir = "client-state"
+```bash
+export TRANSCRIBE_RELAY_SERVER_URL=http://127.0.0.1:8000
+export TRANSCRIBE_RELAY_TOKEN=replace-with-your-random-token
+export TRANSCRIBE_RELAY_WATCH_DIR="$PWD/recordings"
+export TRANSCRIBE_RELAY_STATE_DIR="$PWD/client-state"
+mkdir -p "$TRANSCRIBE_RELAY_WATCH_DIR"
+python -m transcribe_relay.client
 ```
 
-Создайте `watch_dir` и запустите `python -m transcribe_relay.client --config client.toml`. Пути считаются от каталога конфига. Для каждого сервера, клиента и наблюдаемого каталога выделите отдельный `state_dir` вне `watch_dir`; не удаляйте журнал между запусками. HTTP допустим только в доверенной сети/VPN.
+На другой машине укажите LAN-адрес сервера вместо `127.0.0.1` и токен из серверного `TRANSCRIBE_RELAY_CLIENTS`. Для каждого сервера, клиента и наблюдаемого каталога выделите отдельный каталог состояния вне наблюдаемого; не удаляйте журнал между запусками. HTTP допустим только в доверенной сети/VPN.
 
 При первом запуске клиент запоминает уже лежащие файлы, но не загружает их. Новые и изменённые записи отправляются после 10 секунд без изменений размера и времени модификации. Надёжнее писать запись во временный файл и затем переименовывать: длительная пауза записи неотличима от окончания. Клиент сканирует только верхний уровень каталога, без симлинков, и не удаляет исходники.
 

@@ -99,6 +99,8 @@ async def run_buzz(
             "add",
             "--task",
             "transcribe",
+            "--language",
+            "ru",
             "--txt",
             "--hide-gui",
             "--output-directory",

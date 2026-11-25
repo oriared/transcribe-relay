@@ -1,4 +1,5 @@
 import hashlib
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -93,15 +94,53 @@ class ClientTests(unittest.TestCase):
             self.journal.due(13)[0]["key"], self.relay.upload.call_args.args[3]
         )
 
-    def test_config_paths_and_token_privacy(self):
-        config = self.root / "client.toml"
-        config.write_text(
-            'server_url="http://localhost"\ntoken="private-token"\nwatch_dir="watch"\nstate_dir="state"\n'
-        )
-        settings = Settings.load(config)
+    def test_environment_paths_and_token_privacy(self):
+        previous_cwd = Path.cwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, previous_cwd)
+        environment = {
+            "TRANSCRIBE_RELAY_SERVER_URL": "http://localhost",
+            "TRANSCRIBE_RELAY_TOKEN": "private-token",
+            "TRANSCRIBE_RELAY_WATCH_DIR": "watch",
+            "TRANSCRIBE_RELAY_STATE_DIR": "state",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            settings = Settings.load()
         self.assertEqual(settings.watch_dir, self.watch)
         self.assertEqual(settings.state_dir, self.state)
         self.assertNotIn("private-token", repr(settings))
-        config.write_text(config.read_text().replace('="state"', '="watch/private"'))
-        with self.assertRaises(ValueError):
-            Settings.load(config)
+
+    def test_missing_and_blank_environment_values_are_rejected_privately(self):
+        environment = {
+            "TRANSCRIBE_RELAY_SERVER_URL": "http://localhost",
+            "TRANSCRIBE_RELAY_TOKEN": "private-token",
+            "TRANSCRIBE_RELAY_WATCH_DIR": str(self.watch),
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(
+                ValueError, "TRANSCRIBE_RELAY_STATE_DIR"
+            ) as caught:
+                Settings.load()
+        self.assertNotIn("private-token", str(caught.exception))
+
+        environment["TRANSCRIBE_RELAY_STATE_DIR"] = " "
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "TRANSCRIBE_RELAY_STATE_DIR"):
+                Settings.load()
+
+    def test_invalid_token_and_nested_state_directory_are_rejected(self):
+        environment = {
+            "TRANSCRIBE_RELAY_SERVER_URL": "http://localhost",
+            "TRANSCRIBE_RELAY_TOKEN": "private token",
+            "TRANSCRIBE_RELAY_WATCH_DIR": str(self.watch),
+            "TRANSCRIBE_RELAY_STATE_DIR": str(self.state),
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "printable ASCII"):
+                Settings.load()
+
+        environment["TRANSCRIBE_RELAY_TOKEN"] = "private-token"
+        environment["TRANSCRIBE_RELAY_STATE_DIR"] = str(self.watch / "private")
+        with patch.dict(os.environ, environment, clear=True):
+            with self.assertRaisesRegex(ValueError, "outside watch_dir"):
+                Settings.load()

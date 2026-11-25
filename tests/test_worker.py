@@ -27,6 +27,7 @@ def option(name, default=None):
         return default
 
 
+assert option("--task") == "transcribe" and option("--language") == "ru"
 output = Path(option("--output-directory"))
 mode = option("--fake-mode", "empty")
 marker_value = option("--marker")
